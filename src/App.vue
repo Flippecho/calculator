@@ -1,16 +1,15 @@
 <template>
   <div id="app">
     <div class="calculator">
-      <div class="display" style="grid-area: expression">
+      <span class="equation" style="grid-area: expression">
         {{ equation }}
-      </div>
-
-      <div class="display" style="grid-area: result">
+      </span>
+      <span class="result" style="grid-area: result">
         {{ result }}
-      </div>
+      </span>
 
       <button style="grid-area: ac" @click="clear">AC</button>
-      <button style="grid-area: delete" @click="deleteOne">DEL</button>
+      <button style="grid-area: delete" @click="deleteLast">DEL</button>
       <button style="grid-area: equal" @click="calculate">=</button>
 
       <button style="grid-area: add" @click="append('+')">+</button>
@@ -21,23 +20,26 @@
       <button style="grid-area: pre-bracket" @click="append('(')">(</button>
       <button style="grid-area: post-bracket" @click="append(')')">)</button>
 
-      <button style="grid-area: number-1" @click="append(1)">1</button>
-      <button style="grid-area: number-2" @click="append(2)">2</button>
-      <button style="grid-area: number-3" @click="append(3)">3</button>
-      <button style="grid-area: number-4" @click="append(4)">4</button>
-      <button style="grid-area: number-5" @click="append(5)">5</button>
-      <button style="grid-area: number-6" @click="append(6)">6</button>
-      <button style="grid-area: number-7" @click="append(7)">7</button>
-      <button style="grid-area: number-8" @click="append(8)">8</button>
-      <button style="grid-area: number-9" @click="append(9)">9</button>
-      <button style="grid-area: number-0" @click="append(0)">0</button>
+      <button style="grid-area: number-1" @click="append('1')">1</button>
+      <button style="grid-area: number-2" @click="append('2')">2</button>
+      <button style="grid-area: number-3" @click="append('3')">3</button>
+      <button style="grid-area: number-4" @click="append('4')">4</button>
+      <button style="grid-area: number-5" @click="append('5')">5</button>
+      <button style="grid-area: number-6" @click="append('6')">6</button>
+      <button style="grid-area: number-7" @click="append('7')">7</button>
+      <button style="grid-area: number-8" @click="append('8')">8</button>
+      <button style="grid-area: number-9" @click="append('9')">9</button>
+      <button style="grid-area: number-0" @click="append('0')">0</button>
     </div>
     <div class="treeDisplay">
       <span style="grid-area: title" class="title">表达式二叉树</span>
       <div style="grid-area: treeDisplay" v-html="this.resultGraph" class="container"></div>
-      <span style="grid-area: preOrder" class="expression">{{ "前缀表达式: " + preOrderExpression.join(" ") }}</span>
-      <span style="grid-area: inOrder" class="expression">{{ "中缀表达式: " + inOrderExpression.join(" ") }}</span>
-      <span style="grid-area: postOrder" class="expression">{{ "后缀表达式: " + postOrderExpression.join(" ") }}</span>
+      <span style="grid-area: text-pre" class="text">前缀表达式:</span>
+      <span style="grid-area: text-in" class="text">中缀表达式:</span>
+      <span style="grid-area: text-post" class="text">后缀表达式:</span>
+      <span style="grid-area: preOrder" class="expression">{{ preOrderExpression.join(" ") }}</span>
+      <span style="grid-area: inOrder" class="expression">{{ inOrderExpression.join(" ") }}</span>
+      <span style="grid-area: postOrder" class="expression">{{ postOrderExpression.join(" ") }}</span>
     </div>
     <TheFooter></TheFooter>
   </div>
@@ -45,114 +47,137 @@
 
 <script>
 import TheFooter from "@/components/TheFooter";
+import Decimal from 'decimal.js';
 
 export default {
   name: 'App',
   components: {TheFooter},
+  mounted() {
+    const _this = this;
+    document.addEventListener("keydown", function (e) {
+      if (e.shiftKey && (e.key === 'Backspace' || e.key === 'Delete')) _this.clear();
+      else if (e.key === '*') _this.append('×');
+      else if (e.key === '/') _this.append('÷');
+      else if (_this.isValidKey(e.key) || _this.isOperand(e.key)) _this.append(e.key);
+      else if (e.key === 'Delete' || e.key === 'Backspace') _this.deleteLast();
+      else if (e.key === '=' || e.key === 'Enter') _this.calculate();
+    });
+  },
   data() {
     return {
       equation: '',
+      lastChar: '',
+      countLeftBrackets: 0,
+      countRightBrackets: 0,
+      isDecimalAdded: false,
+      importantPosition: [],
       result: '0',
-      resultGraph:'',
+      decimalDigit: 3,
+      resultGraph: '',
       preOrderExpression: [],
       inOrderExpression: [],
-      postOrderExpression: [],
-      isDecimalAdded: false,
-      isOperatorAdded: false,
-      isStarted: false
+      postOrderExpression: []
     }
   },
-  // mounted() {
-  //   key('shift+9', this.append('('));
-  //   key('shift+0', this.append(')'));
-  //   key('shift+=', this.append('+'));
-  //   key('shift+-', this.append('-'));
-  //   key('shift+8', this.append('×'));
-  //   key('/', this.append('/'));
-  //   key('.', this.append('.'));
-  //   key('0', this.append('0'));
-  //   key('1', this.append('1'));
-  //   key('2', this.append('2'));
-  //   key('3', this.append('3'));
-  //   key('4', this.append('4'));
-  //   key('5', this.append('5'));
-  //   key('6', this.append('6'));
-  //   key('7', this.append('7'));
-  //   key('8', this.append('8'));
-  //   key('9', this.append('9'));
-  //   key('shift+c', this.clear());
-  //   key('backspace', this.deleteOne());
-  //   key('=', this.calculate());
-  // },
   methods: {
-    // Check if the character is + / - / × / ÷
     isOperator(character) {
       return ['+', '-', '×', '÷'].indexOf(character) > -1
     },
-    // When pressed Operators or Numbers
+    isOperand(character) {
+      return character.match(/[0-9]/);
+    },
+    isValidKey(character) {
+      return ['+', '-', '(', ')', '.'].indexOf(character) > -1;
+    },
     append(character) {
-      // Start
-      if (this.equation === '0' && !this.isOperator(character)) {
-        if (character === '.') {
-          this.equation += '' + character
-          this.isDecimalAdded = true
-        } else {
-          this.equation = '' + character
-        }
-
-        this.isStarted = true
-        return
-      }
-
-      // If Number
-      if (!this.isOperator(character)) {
-        if (character === '.' && this.isDecimalAdded) {
-          return
-        }
-
-        if (character === '.') {
-          this.isDecimalAdded = true
-          this.isOperatorAdded = true
-        } else {
-          this.isOperatorAdded = false
-        }
-
-        this.equation += '' + character
-      }
-
-      // Added Operator
-      if (this.isOperator(character) && !this.isOperatorAdded) {
-        this.equation += '' + character
-        this.isDecimalAdded = false
-        this.isOperatorAdded = true
+      this.result = '0';
+      if (character === '.') {
+        if (this.isDecimalAdded) this.result = '每个操作数至多含一个小数点';
+        else if ((this.lastChar === '' || this.isOperand(this.lastChar))) {
+          if (this.lastChar === '') this.equation = '0';
+          this.equation += character;
+          this.lastChar = character;
+          this.isDecimalAdded = true;
+        } else this.result = this.lastChar + ' 后不能是 ' + character;
+      } else if (character === '(') {
+        if (this.lastChar === '' || this.lastChar === '(' || this.isOperator(this.lastChar)) {
+          this.equation += character;
+          this.lastChar = character;
+          this.countLeftBrackets++;
+        } else this.result = this.lastChar + ' 后不能是 ' + character;
+      } else if (character === ')') {
+        if (this.countRightBrackets >= this.countLeftBrackets) this.result = "括号不匹配！";
+        else if (this.lastChar === ')' || this.isOperand(this.lastChar)) {
+          this.equation += character;
+          this.lastChar = character;
+          this.countRightBrackets++;
+        } else this.result = this.lastChar + ' 后不能是 ' + character;
+      } else if (this.isOperator(character)) {
+        if (this.lastChar === '' || this.lastChar === ')' || this.isOperand(this.lastChar)) {
+          if (this.lastChar === '') this.equation = 0;
+          this.equation += character;
+          this.lastChar = character;
+          this.isOperatorAdded = true;
+          if (this.isDecimalAdded === true) {
+            this.isDecimalAdded = false;
+            this.importantPosition.push(this.equation.length);
+          }
+        } else this.result = this.lastChar + ' 后不能是 ' + character;
+      } else if (this.isOperand(character)) {
+        if (this.lastChar === '' || this.lastChar === '.' || this.lastChar === '(' || this.isOperand(this.lastChar) || this.isOperator(this.lastChar)) {
+          this.equation += character;
+          this.lastChar = character;
+          this.isOperatorAdded = false;
+        } else this.result = this.lastChar + ' 后不能是 ' + character;
       }
     },
-    // When pressed 'AC'
     clear() {
       this.equation = ''
+      this.lastChar = ''
+      this.countLeftBrackets = 0
+      this.countRightBrackets = 0
+      this.isDecimalAdded = false
+      this.importantPosition = []
       this.result = '0'
       this.resultGraph = ''
       this.preOrderExpression = []
       this.inOrderExpression = []
       this.postOrderExpression = []
-      this.isDecimalAdded = false
-      this.isOperatorAdded = false
-      this.isStarted = false
     },
-    deleteOne() {
+    deleteLast() {
+      this.result = '0';
+      let last = this.equation.charAt(this.equation.length - 1);
+      let last2 = this.equation.charAt(this.equation.length - 2);
+      if (last === '.') this.isDecimalAdded = false;
+      else if (this.isOperator(last)) {
+        this.isOperatorAdded = false;
+        let temp = this.importantPosition.pop();
+        if (this.equation.length === temp) this.isDecimalAdded = true;
+        else this.importantPosition.push(temp);
+      } else if (last === '(') this.countLeftBrackets--;
+      else if (last === ')') this.countRightBrackets--;
+      else if (this.isOperator(last2)) this.isOperatorAdded = true;
       this.equation = this.equation.slice(0, -1);
+      this.lastChar = this.equation.charAt(this.equation.length - 1);
     },
-    // When pressed '='
     calculate() {
-      let result = this.equation.replace(new RegExp('×', 'g'), '*').replace(new RegExp('÷', 'g'), '/');
-      let expressionTree = this.getExpressionTree(result);
-      console.log(expressionTree);
-      this.treeTraverse(expressionTree);
-      this.resultGraph = this.treeToHtml(expressionTree);
-      this.result = evalRPN(this.postOrderExpression);
-      // this.result = parseFloat(eval(result).toFixed(9)).toString()
-      this.isDecimalAdded = false
-      this.isOperatorAdded = false
+      if (this.lastChar === '') this.result = '请输入表达式';
+      else if (this.countLeftBrackets > this.countRightBrackets) this.result = '括号不匹配';
+      else if (this.lastChar === '.') this.result = '请输入小数部分';
+      else if (this.isOperator(this.lastChar)) this.result = '请输入下一个操作数';
+      else {
+        let expression = this.equation.replace(new RegExp('×', 'g'), '*')
+            .replace(new RegExp('÷', 'g'), '/')
+            .replace(/\s*/g, "");
+        let expressionTree = this.getExpressionTree(expression);
+        console.log(expressionTree);
+        this.treeTraverse(expressionTree);
+        this.resultGraph = this.treeToHtml(expressionTree);
+        this.result = evalRPN(this.postOrderExpression);
+        // this.result = parseFloat(eval(result).toFixed(9)).toString()
+        this.isDecimalAdded = false
+        this.isOperatorAdded = false
+      }
     },
     getExpressionTree(expression) {
       const pLen = expression.length
@@ -314,13 +339,13 @@ const evalRPN = function (expression) {
       const num2 = stack.pop();
       const num1 = stack.pop();
       if (cur === '+') {
-        stack.push(num1 + num2);
+        stack.push(Decimal.add(num1, num2));
       } else if (cur === '-') {
-        stack.push(num1 - num2);
+        stack.push(Decimal.sub(num1, num2));
       } else if (cur === '*') {
-        stack.push(num1 * num2);
+        stack.push(Decimal.mul(num1, num2));
       } else if (cur === '/') {
-        stack.push(num1 / num2 > 0 ? Math.floor(num1 / num2) : Math.ceil(num1 / num2));
+        stack.push(Decimal.div(num1, num2));
       }
     }
   }
@@ -380,13 +405,25 @@ const evalRPN = function (expression) {
   box-shadow: -4px -4px 10px -8px rgba(255, 255, 255, 1) inset, 4px 4px 10px -8px rgba(0, 0, 0, .3) inset;
 }
 
-.calculator .display {
+.calculator .equation {
+  text-align: left;
+  height: 80px;
+  line-height: var(--display-height);
+  font-size: 30px;
+  font-family: Helvetica, serif;
+  padding: 0 20px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.calculator .result {
   text-align: right;
   height: 80px;
   line-height: var(--display-height);
-  font-size: 40px;
+  font-size: 30px;
   font-family: Helvetica, serif;
   padding: 0 20px;
+  white-space: nowrap;
   overflow-x: auto;
 }
 
@@ -399,13 +436,14 @@ const evalRPN = function (expression) {
   right: 5vw;
 
   display: grid;
+  grid-template-columns: 200px auto;
   grid-template-rows: 40px auto repeat(3, 40px);
   grid-template-areas:
-  "title"
-  "treeDisplay"
-  "preOrder"
-  "inOrder"
-  "postOrder";
+  "title title"
+  "treeDisplay treeDisplay"
+  "text-pre preOrder"
+  "text-in inOrder"
+  "text-post postOrder";
 
   border-radius: 11px;
   background: linear-gradient(145deg, #ffffff, #e6e6e6);
@@ -424,7 +462,21 @@ const evalRPN = function (expression) {
 
 .treeDisplay .container {
   padding: 10px 20px;
+  white-space: nowrap;
   overflow: auto;
+}
+
+.treeDisplay .text {
+  text-align: left;
+  border-top: 1px solid #BDBDBD;
+  border-radius: 1px;
+  background: #fafafa;
+  line-height: 40px;
+  font-size: 30px;
+  font-family: Helvetica, serif;
+  padding-left: 20px;
+  white-space: nowrap;
+  overflow-x: auto;
 }
 
 .treeDisplay .expression {
@@ -435,13 +487,14 @@ const evalRPN = function (expression) {
   line-height: 40px;
   font-size: 30px;
   font-family: Helvetica, serif;
-  padding: 0 20px;
+  padding-right: 20px;
+  white-space: nowrap;
   overflow-x: auto;
 }
 
 div.tree {
   display: flex;
-  flex-wrap: wrap;/*span需要独占一行，所以此flex布局必须要折行显示*/
+  flex-wrap: wrap; /*span需要独占一行，所以此flex布局必须要折行显示*/
   align-items: flex-start;
 }
 
@@ -456,7 +509,7 @@ div.tree > span {
   padding-bottom: 3em;
   background-image: url("../public/both.svg");
   background-repeat: no-repeat;
-  background-size: 100% calc(100% - 1em);
+  background-size: 100% calc(100% - 0.5em);
   background-position: 0 0;
 }
 
