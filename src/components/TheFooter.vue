@@ -9,8 +9,8 @@
 fetch('https://v1.hitokoto.cn/?c=d&c=i&c=k')
     .then(response => response.json())
     .then(data => {
-      const hitokoto = document.getElementById('quote');
-      hitokoto.innerText = data.hitokoto + ' —— ' + data.from;
+      const quote = document.getElementById('quote');
+      quote.innerText = data.hitokoto + ' —— ' + data.from;
     })
     .catch(console.error)
 
